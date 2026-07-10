@@ -17,16 +17,24 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-REPO_PATH = Path(os.environ.get("REPO_PATH", "Daily-Code"))  # "." when run inside GitHub Actions
-PROJECTS_CSV = REPO_PATH / "projects.csv"     # lives inside the repo so it's versioned
+REPO_PATH = Path(os.environ.get("REPO_PATH", "."))
+PROJECTS_CSV = REPO_PATH / "projects.csv"
+
 OUTPUT_DIR = "output"
-PROJECTS_SUBDIR = "projects"        # projects live at REPO_PATH/projects/<slug>
-MODEL = "gemini-2.5-flash-lite"
+PROJECTS_SUBDIR = "projects"
 
-model = genai.GenerativeModel(MODEL)
 
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+MODEL = os.environ.get(
+    "GEMINI_MODEL",
+    "gemini-2.5-flash-lite"
+)
 
+api_key = os.environ.get("GEMINI_API_KEY")
+
+if not api_key:
+    raise RuntimeError("Missing GEMINI_API_KEY environment variable")
+
+client = genai.Client(api_key=api_key)
 
 def load_projects():
     with open(PROJECTS_CSV, newline="", encoding="utf-8") as f:
