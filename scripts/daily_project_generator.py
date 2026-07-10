@@ -21,7 +21,9 @@ REPO_PATH = Path(os.environ.get("REPO_PATH", "Daily-Code"))  # "." when run insi
 PROJECTS_CSV = REPO_PATH / "projects.csv"     # lives inside the repo so it's versioned
 OUTPUT_DIR = "output"
 PROJECTS_SUBDIR = "projects"        # projects live at REPO_PATH/projects/<slug>
-MODEL = "gemini-2.5-flash"          # bump to "gemini-2.5-pro" for higher quality, slower/pricier
+MODEL = "gemini-2.5-flash-lite"
+
+model = genai.GenerativeModel(MODEL)
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
