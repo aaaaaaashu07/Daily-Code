@@ -1,11 +1,11 @@
 """
-Daily Project Generator
-------------------------
-Reads projects.csv, picks the next unfinished idea, asks Claude to generate
-a complete project, writes the files, zips it, and marks the idea as done.
+Daily Project Generator (Google Gemini version)
+--------------------------------------------------
+Reads projects.csv, picks the next unfinished idea, asks Gemini to generate
+a complete project, writes the files, zips it, and marks the idea as generated.
 
-Run this once a day (cron / Windows Task Scheduler). You just unzip and
-git commit yourself.
+Run this once a day (cron / Windows Task Scheduler / GitHub Actions).
+You review and commit yourself.
 """
 
 import csv
@@ -14,15 +14,16 @@ import json
 import zipfile
 import shutil
 from pathlib import Path
-import anthropic
+from google import genai
+from google.genai import types
 
 REPO_PATH = Path(os.environ.get("REPO_PATH", "Daily-Code"))  # "." when run inside GitHub Actions
 PROJECTS_CSV = REPO_PATH / "projects.csv"     # lives inside the repo so it's versioned
 OUTPUT_DIR = "output"
 PROJECTS_SUBDIR = "projects"        # projects live at REPO_PATH/projects/<slug>
-MODEL = "claude-sonnet-4-6"
+MODEL = "gemini-2.5-flash"          # bump to "gemini-2.5-pro" for higher quality, slower/pricier
 
-client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
 def load_projects():
@@ -39,7 +40,7 @@ def save_projects(rows):
 
 def get_next_idea(rows):
     for row in rows:
-        if row["status"].strip().lower() != "done":
+        if row["status"].strip().lower() == "pending":
             return row
     return None
 
@@ -81,16 +82,29 @@ Requirements:
 - Keep scope tight: this should be buildable and testable in a single sitting,
   not an enterprise system.
 """
-    resp = client.messages.create(
+    response = client.models.generate_content(
         model=MODEL,
-        max_tokens=8000,
-        messages=[{"role": "user", "content": prompt}],
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            max_output_tokens=6000,
+            temperature=0.7,
+            response_mime_type="application/json",  # nudges Gemini to return raw JSON, no fences
+        ),
     )
-    text = resp.content[0].text.strip()
+    text = (response.text or "").strip()
+    if not text:
+        raise RuntimeError("Gemini returned an empty response.")
+
     if text.startswith("```"):
         text = text.split("\n", 1)[1]
         text = text.rsplit("```", 1)[0]
-    return json.loads(text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        print("\nGemini returned invalid JSON:\n")
+        print(text)
+        raise
 
 
 def write_project(project_data: dict) -> Path:
